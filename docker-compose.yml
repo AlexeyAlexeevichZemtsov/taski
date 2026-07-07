@@ -1,0 +1,46 @@
+# Файл docker-compose.yml
+
+# Перечень volume
+volumes:
+  pg_data:
+  # Volume для статики фронтенда и бэкенда
+  static:
+
+# Перечень контейнеров
+services:
+  # Контейнер БД
+  db:
+    image: postgres:13.10
+    env_file: .env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+  # Контейнер с бэкендом
+  backend:
+    build: ./backend/
+    env_file: .env
+    depends_on:
+      - db
+    # Подключаем volume со статикой к backend
+    volumes:
+      - static:/backend_static
+  # Контейнер с фронтендом: собирает статику и копирует её на volume,
+  # после чего останавливается
+  frontend:
+    env_file: .env
+    build: ./frontend/
+    volumes:
+      - static:/frontend_static
+    command: cp -r /app/build/. /frontend_static/
+  # Контейнер-шлюз (gateway) с Nginx
+  gateway:
+    build: ./gateway/
+    # Nginx резолвит upstream "backend" при старте — поэтому
+    # шлюз должен подниматься после контейнера backend
+    depends_on:
+      - backend
+    # Раздаёт статику из общего volume
+    volumes:
+      - static:/staticfiles
+    # Проброс: порт 8000 хоста → порт 80 контейнера
+    ports:
+      - 8000:80
